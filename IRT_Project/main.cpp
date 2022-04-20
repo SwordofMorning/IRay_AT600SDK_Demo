@@ -2,12 +2,13 @@
 #include <string>
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <fstream>
 #include <USBSDK.h>
 
 using namespace std;
 
 // video使用，预留额外的5倍空间大小
-unsigned short pBufShow[512 * 640 * 5];
+unsigned short pBufferShow[512 * 640 * 5];
 // 镜头数据，用以转换为温度数据
 unsigned short camera_data[2560 * 1024];
 // 温度数据
@@ -15,10 +16,10 @@ float temp_data[1280 * 1024];
 // 温度图像数据，对温度数据归一化，便于显示
 float temp_data_img[640 * 512];
 
-// 视频回调
+// 视频回调 UYVY
 void VCB(unsigned char* pBuffer, int width, int height, void* pContext)
 {
-	memcpy(pBufShow, pBuffer, width * height * sizeof(unsigned short));
+	memcpy(pBufferShow, pBuffer, width * height * sizeof(unsigned short));
 }
 
 // 温度回调
@@ -33,7 +34,7 @@ void TCB(unsigned char* pBuffer, int width, int height, void* pContext)
 	{
 		for (int i = 0; i < width; i++)
 		{
-			
+
 			temp_data[j * width + i] = (camera_data[j * width + i] + 7000) / fTempValue - 273.2;
 		}
 	}
@@ -42,7 +43,7 @@ void TCB(unsigned char* pBuffer, int width, int height, void* pContext)
 	float minTemp = 10000;
 	float maxTemp = 0;
 
-	for (int i = 0; i < 640 * 512; i++) 
+	for (int i = 0; i < 640 * 512; i++)
 	{
 		double iTemp = temp_data[i];
 
@@ -55,7 +56,7 @@ void TCB(unsigned char* pBuffer, int width, int height, void* pContext)
 	}
 
 	// 温度归一化
-	for (int i = 0; i < 640 * 512; i++) 
+	for (int i = 0; i < 640 * 512; i++)
 	{
 
 		double iTemp = temp_data[i];
@@ -71,11 +72,31 @@ void TCB(unsigned char* pBuffer, int width, int height, void* pContext)
 	}
 }
 
+// 保存视频流
+void saveVideoStream(int height, int width)
+{
+	std::ofstream Luma;
+	Luma.open("./videoStream.txt");
+
+	// pBufferShow现在为short类型，高八位储存Y，第八位储存UV
+	char* ptr = (char*)pBufferShow;
+
+	for (int i = 0; i < height; ++i)
+	{
+		for (int j = 0; j < width; ++j)
+		{
+			// Luma << int(ptr[(j * height + width) * 2]) << ' ';
+			Luma << int(ptr[(j * height + width) * 2 + 1]) << ' ';
+		}
+		Luma << "\n";
+	}
+}
+
 int main()
 {
 	// 创建接口
 	auto handle = sdk_create();
-	HWND hWnd { nullptr };
+	HWND hWnd{ nullptr };
 
 	sdk_loginDevice(handle, hWnd);
 
@@ -96,25 +117,26 @@ int main()
 	for (;;)
 	{
 		// 视频显示
-		cv::Mat vidIn{ height, width, CV_8UC2, (unsigned char*)pBufShow };
+		cv::Mat vidIn{ height, width, CV_8UC2, (unsigned char*)pBufferShow };
 		cv::Mat vidOut;
 		cv::cvtColor(vidIn, vidOut, cv::COLOR_YUV2BGR_YUYV);
+
+		/* ===== Debug Output ===== */
+		std::cout << width << ' ' << height << std::endl;
+		std::cout << "vidOutChannels: " << vidOut.channels() << std::endl;
+		/* ===== Debug Output ===== */
 
 		// 温度显示
 		cv::Mat tempImg{ height, width, CV_32FC1, temp_data_img };
 		cv::Mat temp{ height, width, CV_32FC1, temp_data };
-
-		// 合并图片
-		//cv::Mat dst;
-
-		// cv::hconcat(tempImg, vidOut, dst);
-
-		cv::imwrite("output_tmpImg.png", tempImg);
+		
+		// cv::imwrite("output_tmpImg.png", tempImg);
 		cv::imwrite("output_video.png", vidOut);
+		saveVideoStream(height, width);
 
-		cv::imshow("dst", vidOut);
+		cv::imshow("RGB", vidOut);
 
-		if (cv::waitKey(50) >= 0) break;
+		cv::waitKey(0);
 	}
 
 	// 关闭设备
