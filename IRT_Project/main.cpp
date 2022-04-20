@@ -79,16 +79,34 @@ void saveVideoStream(int height, int width)
 	Luma.open("./videoStream.txt");
 
 	// pBufferShow现在为short类型，高八位储存Y，第八位储存UV
-	char* ptr = (char*)pBufferShow;
+	unsigned char* ptr = (unsigned char*)pBufferShow;
 
 	for (int i = 0; i < height; ++i)
 	{
 		for (int j = 0; j < width; ++j)
 		{
+			// UV 
 			// Luma << int(ptr[(j * height + width) * 2]) << ' ';
+			// Luma
 			Luma << int(ptr[(j * height + width) * 2 + 1]) << ' ';
 		}
 		Luma << "\n";
+	}
+}
+
+// 遍历保存Mat
+void saveMat(cv::Mat m)
+{
+	std::ofstream os;
+	os.open("./videoMat.txt");
+
+	for (int i = 0; i < m.rows; ++i)
+	{
+		for (int j = 0; j < m.cols; ++j)
+		{
+			os << int(m.at<cv::Vec2b>(i, j)[1]) << ' ';
+		}
+		os << '\n';
 	}
 }
 
@@ -123,6 +141,7 @@ int main()
 
 		/* ===== Debug Output ===== */
 		std::cout << width << ' ' << height << std::endl;
+		std::cout << "vidInChannels: " << vidIn.channels() << std::endl;
 		std::cout << "vidOutChannels: " << vidOut.channels() << std::endl;
 		/* ===== Debug Output ===== */
 
@@ -130,12 +149,14 @@ int main()
 		cv::Mat tempImg{ height, width, CV_32FC1, temp_data_img };
 		cv::Mat temp{ height, width, CV_32FC1, temp_data };
 		
+		// 保存数据
 		// cv::imwrite("output_tmpImg.png", tempImg);
-		cv::imwrite("output_video.png", vidOut);
+		cv::imwrite("RGB.png", vidOut);
 		saveVideoStream(height, width);
+		saveMat(vidIn);
 
+		// 显示图片
 		cv::imshow("RGB", vidOut);
-
 		cv::waitKey(0);
 	}
 
