@@ -75,8 +75,9 @@ void TCB(unsigned char* pBuffer, int width, int height, void* pContext)
 // 保存视频流
 void saveVideoStream(int height, int width)
 {
-	std::ofstream Luma;
-	Luma.open("./videoStream.txt");
+	std::ofstream Luma, Chroma;
+	Luma.open("./videoLuma.txt");
+	Chroma.open("./videoChroma.txt");
 
 	// pBufferShow现在为short类型，高八位储存Y，第八位储存UV
 	unsigned char* ptr = (unsigned char*)pBufferShow;
@@ -85,32 +86,34 @@ void saveVideoStream(int height, int width)
 	{
 		for (int j = 0; j < width; ++j)
 		{
-			// UV 
-			// Luma << int(ptr[(j * height + width) * 2]) << ' ';
-			// Luma
+			Chroma << int(ptr[(j * height + width) * 2]) << ' ';
 			Luma << int(ptr[(j * height + width) * 2 + 1]) << ' ';
 		}
 		Luma << "\n";
+		Chroma << "\n";
 	}
 }
 
 // 遍历保存Mat
 void saveMat(cv::Mat m)
 {
-	std::ofstream os;
-	os.open("./videoMat.txt");
+	std::ofstream ch0, ch1;
+	ch0.open("./videoMatCh0.txt");
+	ch1.open("./videoMatCh1.txt");
 
 	for (int i = 0; i < m.rows; ++i)
 	{
 		for (int j = 0; j < m.cols; ++j)
 		{
-			os << int(m.at<cv::Vec2b>(i, j)[1]) << ' ';
+			ch0 << int(m.at<cv::Vec2b>(i, j)[0]) << ' ';
+			ch1 << int(m.at<cv::Vec2b>(i, j)[1]) << ' ';
 		}
-		os << '\n';
+		ch1 << '\n';
+		ch0 << '\n';
 	}
 }
 
-int main()
+void client()
 {
 	// 创建接口
 	auto handle = sdk_create();
@@ -148,12 +151,15 @@ int main()
 		// 温度显示
 		cv::Mat tempImg{ height, width, CV_32FC1, temp_data_img };
 		cv::Mat temp{ height, width, CV_32FC1, temp_data };
-		
+
 		// 保存数据
 		// cv::imwrite("output_tmpImg.png", tempImg);
 		cv::imwrite("RGB.png", vidOut);
 		saveVideoStream(height, width);
 		saveMat(vidIn);
+
+		std::cout << "save finished!" << std::endl;
+
 
 		// 显示图片
 		cv::imshow("RGB", vidOut);
@@ -162,6 +168,11 @@ int main()
 
 	// 关闭设备
 	CloseDevice(handle);
+}
+
+int main()
+{
+	client();
 
 	return 0;
 }

@@ -2,14 +2,17 @@
 
 clear;clc;
 
-vs = load ('videoMat.txt');
+Luma = load ('videoLuma.txt');
+Chroma = load("videoChroma.txt");
+Vm = load("videoMat.txt");
 
-MaxVal = max(max(vs));
-MinVal = min(min(vs));
+Luma = uint8(Luma);
+Chroma = uint8(Chroma);
+Vm = uint8(Vm);
 
-%% ===== 查看最大值最小值 =====
-vs = uint8(vs);
-
-imshow(vs);
-
-%% ===== 
+figure(1);
+imshow(Luma);
+figure(2);
+imshow(Chroma);
+figure(3);
+imshow(Vm);
