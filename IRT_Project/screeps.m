@@ -4,7 +4,7 @@ clear;clc;
 
 Luma = load ('videoLuma.txt');
 Chroma = load("videoChroma.txt");
-Vm = load("videoMat.txt");
+Vm = load("videoMatCh1.txt");
 
 Luma = uint8(Luma);
 Chroma = uint8(Chroma);

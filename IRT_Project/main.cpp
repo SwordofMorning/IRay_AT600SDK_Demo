@@ -16,6 +16,9 @@ float temp_data[1280 * 1024];
 // 温度图像数据，对温度数据归一化，便于显示
 float temp_data_img[640 * 512];
 
+// video, 单通道
+unsigned char pBufferShow2[512 * 640 * 5];
+
 // 视频回调 UYVY
 void VCB(unsigned char* pBuffer, int width, int height, void* pContext)
 {
@@ -84,14 +87,16 @@ void saveVideoStream(int height, int width)
 
 	for (int i = 0; i < height; ++i)
 	{
-		for (int j = 0; j < width; ++j)
+		for (int j = 0; j < width; j += 2)
 		{
-			Chroma << int(ptr[(j * height + width) * 2]) << ' ';
-			Luma << int(ptr[(j * height + width) * 2 + 1]) << ' ';
+			Chroma << int(ptr[(i * width + j) * 2]) << ' ';
+			Luma << int(ptr[(i * width + j) * 2 + 1]) << ' ';
 		}
 		Luma << "\n";
 		Chroma << "\n";
 	}
+
+
 }
 
 // 遍历保存Mat
@@ -140,7 +145,7 @@ void client()
 		// 视频显示
 		cv::Mat vidIn{ height, width, CV_8UC2, (unsigned char*)pBufferShow };
 		cv::Mat vidOut;
-		cv::cvtColor(vidIn, vidOut, cv::COLOR_YUV2BGR_YUYV);
+		cv::cvtColor(vidIn, vidOut, cv::COLOR_YUV2BGR_YUYV, 3);
 
 		/* ===== Debug Output ===== */
 		std::cout << width << ' ' << height << std::endl;
@@ -153,13 +158,11 @@ void client()
 		cv::Mat temp{ height, width, CV_32FC1, temp_data };
 
 		// 保存数据
-		// cv::imwrite("output_tmpImg.png", tempImg);
 		cv::imwrite("RGB.png", vidOut);
 		saveVideoStream(height, width);
 		saveMat(vidIn);
 
 		std::cout << "save finished!" << std::endl;
-
 
 		// 显示图片
 		cv::imshow("RGB", vidOut);
