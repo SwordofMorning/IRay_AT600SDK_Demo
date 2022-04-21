@@ -95,8 +95,24 @@ void saveVideoStream(int height, int width)
 		Luma << "\n";
 		Chroma << "\n";
 	}
+	Luma.close();
+	Chroma.close();
 
-
+	// 测试是否为一次性传输两张图片
+	Luma.open("./videoLuma_2.txt");
+	Chroma.open("./videoChroma_2.txt");
+	for (int i = 0; i < height; ++i)
+	{
+		for (int j = 0; j < width; j += 2)
+		{
+			Chroma << int(ptr[(i * width + j) * 2 + height * width]) << ' ';
+			Luma << int(ptr[(i * width + j) * 2 + 1 + height * width]) << ' ';
+		}
+		Luma << "\n";
+		Chroma << "\n";
+	}
+	Luma.close();
+	Chroma.close();
 }
 
 // 遍历保存Mat
