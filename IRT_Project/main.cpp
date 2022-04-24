@@ -3,9 +3,8 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include <fstream>
+#include <thread>
 #include <USBSDK.h>
-
-using namespace std;
 
 // video使用，预留额外的5倍空间大小
 unsigned short pBufferShow[512 * 640 * 5];
@@ -15,9 +14,6 @@ unsigned short camera_data[2560 * 1024];
 float temp_data[1280 * 1024];
 // 温度图像数据，对温度数据归一化，便于显示
 float temp_data_img[640 * 512];
-
-// video, 单通道
-unsigned char pBufferShow2[512 * 640 * 5];
 
 // 视频回调 UYVY
 void VCB(unsigned char* pBuffer, int width, int height, void* pContext)
@@ -78,17 +74,21 @@ void TCB(unsigned char* pBuffer, int width, int height, void* pContext)
 // 保存视频流
 void saveVideoStream(int height, int width)
 {
-	std::ofstream Luma, Chroma;
+	std::ofstream Luma, Chroma, Posi;
 	Luma.open("./videoLuma.txt");
 	Chroma.open("./videoChroma.txt");
+	Posi.open("./videoPosi.txt");
 
-	// pBufferShow现在为short类型，高八位储存Y，第八位储存UV
+	// pBufferShow现在为short类型，第一个字节储存UV，第二个字节储存Y
 	unsigned char* ptr = (unsigned char*)pBufferShow;
+
+	std::cout << "saveVideoStream: " << height << ' ' << width << std::endl;
 
 	for (int i = 0; i < height; ++i)
 	{
-		for (int j = 0; j < width; j += 2)
+		for (int j = 0; j < width; j += 1)
 		{
+			// (i, j)像素位置 = (i * width + j) * 2，其中的2来自于(unsigned short) / (unsigned char)
 			Chroma << int(ptr[(i * width + j) * 2]) << ' ';
 			Luma << int(ptr[(i * width + j) * 2 + 1]) << ' ';
 		}
@@ -98,21 +98,6 @@ void saveVideoStream(int height, int width)
 	Luma.close();
 	Chroma.close();
 
-	// 测试是否为一次性传输两张图片
-	Luma.open("./videoLuma_2.txt");
-	Chroma.open("./videoChroma_2.txt");
-	for (int i = 0; i < height; ++i)
-	{
-		for (int j = 0; j < width; j += 2)
-		{
-			Chroma << int(ptr[(i * width + j) * 2 + height * width]) << ' ';
-			Luma << int(ptr[(i * width + j) * 2 + 1 + height * width]) << ' ';
-		}
-		Luma << "\n";
-		Chroma << "\n";
-	}
-	Luma.close();
-	Chroma.close();
 }
 
 // 遍历保存Mat
@@ -132,6 +117,71 @@ void saveMat(cv::Mat m)
 		ch1 << '\n';
 		ch0 << '\n';
 	}
+}
+
+/*
+	视频循环中显示视频Mat
+*/
+class videoLoopDisp
+{
+public:
+	void operator()(cv::Mat videoFrame, std::string windName) const
+	{
+		cv::imshow(windName, videoFrame);
+	}
+};
+
+/*
+	视频循环中保存视频Mat
+*/
+class videoLoopSave
+{
+public:
+	void operator()(cv::VideoWriter& videoWriter, cv::Mat videoFrame) const
+	{
+		videoWriter << videoFrame;
+	}
+};
+
+/*
+	在client中调用的视频接口循环
+*/
+void videoLoop(int height, int width)
+{
+	// 视频保存地址
+	std::string outputVideoPath{ "./outputVideo.mp4" };
+	// 视频大小
+	cv::Size outputVideoSize{ width, height };
+
+	cv::VideoWriter outputVideoWriter;
+	int myFourCC = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
+	outputVideoWriter.open(outputVideoPath, myFourCC, 30, outputVideoSize, true);
+
+	if (!outputVideoWriter.isOpened())
+	{
+		std::cout << "Video Writer Open failed!" << std::endl;
+		return;
+	}
+
+	for (;;)
+	{
+		// 格式转换
+		cv::Mat MatYUV{ height, width, CV_8UC2, (unsigned char*)pBufferShow };
+		cv::Mat MatRGB;
+		cv::cvtColor(MatYUV, MatRGB, cv::COLOR_YUV2BGR_YUYV, 3);
+
+		// std::thread thDisp(videoLoopDisp(), MatRGB, "wind1");
+		std::thread thSave(videoLoopSave(), std::ref(outputVideoWriter), MatRGB);
+
+		// thDisp.detach();
+		thSave.detach();
+
+		cv::imshow("disp", MatRGB);
+
+		if (cv::waitKey(30) == 'q')	break;
+	}
+
+	outputVideoWriter.release();
 }
 
 void client()
@@ -156,34 +206,8 @@ void client()
 	SetVideoCallBack(handle, VCB, nullptr);
 	SetTempCallBack(handle, TCB, nullptr);
 
-	for (;;)
-	{
-		// 视频显示
-		cv::Mat vidIn{ height, width, CV_8UC2, (unsigned char*)pBufferShow };
-		cv::Mat vidOut;
-		cv::cvtColor(vidIn, vidOut, cv::COLOR_YUV2BGR_YUYV, 3);
-
-		/* ===== Debug Output ===== */
-		std::cout << width << ' ' << height << std::endl;
-		std::cout << "vidInChannels: " << vidIn.channels() << std::endl;
-		std::cout << "vidOutChannels: " << vidOut.channels() << std::endl;
-		/* ===== Debug Output ===== */
-
-		// 温度显示
-		cv::Mat tempImg{ height, width, CV_32FC1, temp_data_img };
-		cv::Mat temp{ height, width, CV_32FC1, temp_data };
-
-		// 保存数据
-		cv::imwrite("RGB.png", vidOut);
-		saveVideoStream(height, width);
-		saveMat(vidIn);
-
-		std::cout << "save finished!" << std::endl;
-
-		// 显示图片
-		cv::imshow("RGB", vidOut);
-		cv::waitKey(0);
-	}
+	/* 视频 */
+	videoLoop(height, width);
 
 	// 关闭设备
 	CloseDevice(handle);
